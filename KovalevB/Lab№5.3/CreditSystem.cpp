@@ -192,7 +192,6 @@ class CreditSystem {
         double monthlyPayment = CalculateMonthlyPayment(EstCreditAmount, EstCreditYears);
 
         if (monthlyPayment < 0) {
-            // cout << "Error: credit amount must be in [1, 3 000 000] range!" << '\n';
             return false;
         }
         return currClient->Amount >= 6 * monthlyPayment;
