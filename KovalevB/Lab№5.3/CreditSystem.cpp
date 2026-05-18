@@ -61,16 +61,37 @@ class ProcessingCenter{
 
     ProcessingCenter& operator=(const ProcessingCenter&) = delete;
 
-    void AddClient(const Client& clnt) {
-        if (size >= cap) {
-            resize();
-        }
-        clients[size] = clnt;
-        size++;
+    bool AddClient(const Client& clnt) {
+        if (ClientExists(clnt.ID)) return false;
+        if (size >= cap) resize();
+        clients[size++] = clnt;
+        return true;
     }
 
     ~ProcessingCenter() {
         delete[] clients;
+    }
+
+    bool RegisterNewClient(const string& id, const string& password,
+                           const string& fullName, double amount) {
+        if (password.length() <= 3) {
+            cout << "Error: password length must be greater than 3\n";
+            return false;
+        }
+        if (id.length() != 4 || id < "0001" || id > "9999") {
+            cout << "Error: ID must be in [0001, 9999] range\n";
+            return false;
+        }
+        if (amount < 0) {
+            cout << "Error: initial balance cannot be negative\n";
+            return false;
+        }
+        if (!AddClient(Client(id, password, fullName, amount))) {
+            cout << "Error: client with this ID already exists\n";
+            return false;
+        }
+        cout << "Client successfully registered!\n";
+        return true;
     }
 
     Client* FindClient(const string& id, const string& pass) {
@@ -158,27 +179,6 @@ class CreditSystem {
         cout << "==========================" << '\n';
     }
 
-    bool RegisterNewClient(string id, string password, string fullName, double amount) {
-        if (password.length() <= 3) {
-            cout << "Error: password length must be greater than 3 " << '\n';
-            return false;
-        }
-        if (id.length() != 4 || (id < "0001" || id > "9999")) {
-            cout << "Error: id must be in [0001, 9999] range" << '\n';
-            return false;
-        }
-
-        if (pc.ClientExists(id)) {
-            cout << "Error: client with this ID already exists\n";
-            return false;
-        }
-
-        Client c(id, password, fullName, amount);
-        pc.AddClient(c);
-
-        cout << "Client successfully registered !" << '\n';
-        return true;
-    }
 
     bool CheckActiveLoan() const {
         if (currClient == nullptr) return false; 
@@ -198,21 +198,58 @@ class CreditSystem {
     }
 
     void ShowAvailableCredits() const {
+        struct Tier {
+            const char* name;
+            double minAmt, maxAmt;
+            double rateShort, rateLong;
+        };
+        Tier tiers[] = {
+            {"Up to 100,000",             1.0,     100000.0, 0.16, 0.13},
+            {"100,001 - 500,000",    100001.0,     500000.0, 0.12, 0.14},
+            {"500,001 - 1,000,000",  500001.0,    1000000.0, 0.15, 0.17},
+            {"1,000,001 - 3,000,000",1000001.0,   3000000.0, 0.11, 0.11}
+        };
+
         cout << "=== AVAILABLE CREDIT PROGRAMS ===" << '\n';
-    cout << "1. Amount up to 100,000 rub:" << '\n';
-    cout << "   - Term <= 3 years: 16% annual rate" << '\n';
-    cout << "   - Term > 3 years:  13% annual rate" << '\n';
-    cout << "2. Amount 100,001 - 500,000 rub:" << '\n';
-    cout << "   - Term <= 3 years: 12% annual rate" << '\n';
-    cout << "   - Term > 3 years:  14% annual rate" << '\n';
-    cout << "3. Amount 500,001 - 1,000,000 rub:" << '\n';
-    cout << "   - Term <= 3 years: 15% annual rate" << '\n';
-    cout << "   - Term > 3 years:  17% annual rate" << '\n';
-    cout << "4. Amount 1,000,001 - 3,000,000 rub:" << '\n';
-    cout << "   - Any term: 11% annual rate" << '\n';
-    cout << "=================================" << '\n';
-    cout << "* Max credit amount: 3,000,000 rub." << '\n';
-    cout << "* Available terms: 1, 2, 3, 5, 15 years." << '\n';
+        for (int i = 0; i < 4; i++) {
+            cout << (i + 1) << ". " << tiers[i].name << " rub:\n";
+            if (tiers[i].rateShort == tiers[i].rateLong) {
+                cout << "   - Any term: " << (tiers[i].rateShort * 100) << "% annual rate\n";
+            } else {
+                cout << "   - Term <= 3 years: " << (tiers[i].rateShort * 100) << "% annual rate\n";
+                cout << "   - Term >  3 years: " << (tiers[i].rateLong  * 100) << "% annual rate\n";
+            }
+        }
+        cout << "* Max credit: 3,000,000 rub. | Terms: 1, 2, 3, 5, 15 years.\n"
+            << "=================================\n";
+
+        if (currClient == nullptr) return;
+        if (currClient->LoanTaken) {
+            cout << "\nEligibility unavailable: active loan exists.\n";
+            return;
+        }
+
+        int validYears[] = {1, 2, 3, 5, 15};
+        cout << "\n=== YOUR ELIGIBILITY (Balance: " << currClient->Amount << " rub.) ===\n";
+        bool anyAvailable = false;
+        for (auto& tier : tiers) {
+            double bestMax = 0.0;
+            int bestYears = 0;
+            for (int y : validYears) {
+                double r    = GetPercentRate(tier.minAmt, y) / 12.0;
+                double temp = pow(1 + r, y * 12);
+                double maxAffordable = currClient->Amount / (6.0 * r * temp / (temp - 1));
+                if (maxAffordable > bestMax) { bestMax = maxAffordable; bestYears = y; }
+            }
+            double available = min(bestMax, tier.maxAmt);
+            if (available >= tier.minAmt) {
+                cout << tier.name << ": up to " << (int)available
+                    << " rub. (best term: " << bestYears << " yr.)\n";
+                anyAvailable = true;
+            }
+        }
+        if (!anyAvailable) cout << "No credit programs available for your current balance.\n";
+        cout << "========================================\n";
     }
 
     void TakeLoan(double amount, int years) {
@@ -357,7 +394,7 @@ int main() {
                         cout << "Error: initial balance cannot be negative\n";
                         break;
                     }
-                    bank.RegisterNewClient(id, pass, name, amount);
+                    pc.RegisterNewClient(id, pass, name, amount);
                     break;
                 }
                 case 3:
