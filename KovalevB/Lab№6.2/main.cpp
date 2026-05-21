@@ -65,7 +65,7 @@ class Game {
     Number secret;
 
     bool ValidateGuess(const string& s, int n) {
-        if (s.size() != n) return false;
+        if ((int)s.size() != n) return false;
         if (s[0] == '0') return false;
         bool seen[10] = {};
 
@@ -81,7 +81,7 @@ class Game {
 
     public:
 
-    Game(int n_): n(n_), secret(n) {}
+    Game(int n_): n(n_), secret(n_) {}
 
     void Start() {
         cout << "Secret is " << n << " digits. Start guessing!\n";
