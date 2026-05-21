@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <cctype>
+#include <limits>
 #include <stdexcept>
 
 using namespace std;
@@ -11,19 +12,19 @@ class Number {
 
     public:
     Number(int n) {
-        if (n < 1) {
-            throw std::invalid_argument("err: length of number must be natural value.");
+        if (n < 1 || n > 9) { 
+            throw std::invalid_argument("length must be between 1 and 9.");
         }
         string digits = "0123456789";
-        for (int i = 0; i < n; ++i) {
-             
-            int j = i + rand() % (10 - i);
 
-             char tmp = digits[i];
-             digits[i] = digits[j];
-             digits[j] = tmp;
+        int j = 1 + rand() % 9;
+        char tmp = digits[0]; digits[0] = digits[j]; digits[j] = tmp;
+
+        for (int i = 1; i < n; ++i) {
+            j = i + rand() % (10 - i);
+            tmp = digits[i]; digits[i] = digits[j]; digits[j] = tmp;
         }
-        secret_number = digits.substr(0,n);
+        secret_number = digits.substr(0, n);
     } 
 
     string GetNumber() const { return secret_number; }
@@ -65,6 +66,7 @@ class Game {
 
     bool ValidateGuess(const string& s, int n) {
         if (s.size() != n) return false;
+        if (s[0] == '0') return false;
         bool seen[10] = {};
 
         for (char c : s) {
@@ -74,7 +76,6 @@ class Game {
             if (seen[d]) return false;
             seen[d] = true;
         }
-
         return true;
     }
 
@@ -87,7 +88,12 @@ class Game {
         string attempt;
             while (true) {
                 cout << "Your guess: ";
-                cin >> attempt;
+                if (!(cin >> attempt)) {
+                    cin.clear();
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    cout << "err: invalid input.\n";
+                    continue;
+                }
 
                 if (!ValidateGuess(attempt, n)) {
                     cout << "err: string don't fits task conditions.\n";
@@ -114,14 +120,25 @@ int main() {
     while (true) {
         try {
             int n;
-            cout << "Input length: "; cin >> n; 
+            cout << "Input length: ";
+            if (!(cin >> n)) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "err: expected a number.\n\n";
+                continue;
+            } 
             Game G(n);   
             G.Start();
             break;
         } catch (const std::invalid_argument& e) {
             cout << "\nOooopsssss....... Error detected: " << e.what() << "\n\n";
             cout << "Wanna start new game ? 1/0: ";
-            int ch; cin >> ch;
+            int ch;
+            if (!(cin >> ch)) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                ch = 0;
+            }
             if (!ch) break;
         }
     }  
